@@ -1,14 +1,15 @@
-!pip install transformers datasets trl torch accelerate bitsandbytes huggingface_hub
-
 from transformers import AutoModelForCausalLM, AutoTokenizer, TrainingArguments, pipeline
-from datasets import load_dataset
+from datasets import load_dataset, concatenate_datasets, Dataset
 from trl import SFTConfig, SFTTrainer, setup_chat_format
 import torch
 import os
-from huggingface_hub import notebook_login
-notebook_login()
+import json
+
+#from huggingface_hub import notebook_login
+#notebook_login()
 
 device = ("cuda")
+save_directory = "./aeon"
 
 model_name = "gustavokuklinski/aeon-360m"
 model = AutoModelForCausalLM.from_pretrained(pretrained_model_name_or_path=model_name)
@@ -16,8 +17,6 @@ tokenizer = AutoTokenizer.from_pretrained(pretrained_model_name_or_path=model_na
 
 model, tokenizer = setup_chat_format(model=model, tokenizer=tokenizer)
 
-from datasets import load_dataset, concatenate_datasets, Dataset
-import json
 
 def format_gpt(example):
     completion = []
@@ -90,7 +89,6 @@ trainer = SFTTrainer(
 
 trainer.train()
 
-save_directory = "./aeon"
 model.save_pretrained(save_directory)
 tokenizer.save_pretrained(save_directory)
 
