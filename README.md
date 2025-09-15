@@ -6,11 +6,13 @@ Know more about Aeon: [Main Repository](https://github.com/gustavokuklinski/aeon
 ## Aeon Trainer
 This is a Aeon LLM trainer and dataset.
 
-The model was trained on Google Colab GPU T4 Free tier
+For a CPU training test used model below 100M parameters (tested on Intel Core i7 10th)
 
+The model was trained on Google Colab GPU T4 Free tier
 Model on huggingface.com/[gustavokuklinski/aeon-360m](https://huggingface.co/gustavokuklinski/aeon-360m)
-Dataset on huggingface.com/datasets/[gustavokuklinski/aeon-360m](https://huggingface.co/datasets/gustavokuklinski/aeon)
+
+Dataset on huggingface.com/datasets/[gustavokuklinski/aeon](https://huggingface.co/datasets/gustavokuklinski/aeon) 
 
 ## Scripts
-- `aeon-train.py` The basic training script
+- `aeon-llm.py` The basic training script
 - `aeon-gguf.py` Convertion from safetensors to GGUF (You can convert locally or on Colab for quantize compile LlamaCpp)

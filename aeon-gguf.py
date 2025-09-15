@@ -9,7 +9,7 @@ import sys
 save_directory = "aeon" 
 
 # The desired output filename for the GGUF model.
-gguf_output_filename = "gguf/output-aeon.gguf"
+gguf_output_filename = "gguf/aeon.gguf"
 
 # The output type for the GGUF model (e.g., f16, q4_0, q8_0).
 output_type = "f16"
