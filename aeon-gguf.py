@@ -2,16 +2,13 @@ import os
 import subprocess
 import sys
 
-# --- Configuration ---
-# This is the directory where your Hugging Face model files are located.
-# You MUST change this to the correct path for your model.
-# For example: save_directory = "path/to/your/huggingface-model"
-save_directory = "aeon" 
+# Safetensor modelfiles
+save_directory = "/aeon" 
 
 # The desired output filename for the GGUF model.
 gguf_output_filename = "gguf/aeon.gguf"
 
-# The output type for the GGUF model (e.g., f16, q4_0, q8_0).
+# The output type for the GGUF model (f16, q8_0).
 output_type = "f16"
 
 # --- Script Logic ---

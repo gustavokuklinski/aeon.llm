@@ -12,7 +12,7 @@ print("\033[38;5;160m    ### ###     ##        ###     ###  ######  ### \033[0m"
 print("\033[38;5;160m   ###   ###    #######   ###     ###  ###  ## ### \033[0m")
 print("\033[38;5;160m  ###     ###   ##        ###     ###  ###   ##### \033[0m")
 print("\033[38;5;160m ##         ##  #######     #######    ###     ### \033[0m")
-print("\033[38;5;160m___________________________________________________\033[0m")
+print("\033[38;5;160m_FINETUNE__________________________________________\033[0m")
 print("")
 
 device = "cuda" if torch.cuda.is_available() else "cpu"
@@ -20,8 +20,8 @@ print(f"\033[1;93m[TRAINER]\033[0m Device found: {device}")
 
 save_directory = "./aeon"
 
-model_name = "arnir0/Tiny-LLM"  # 50M parameters
-# model_name = "HuggingFaceTB/SmolLM2-360M" # 360M parameters
+
+model_name = "HuggingFaceTB/SmolLM2-360M"
 
 model = AutoModelForCausalLM.from_pretrained(pretrained_model_name_or_path=model_name)
 tokenizer = AutoTokenizer.from_pretrained(pretrained_model_name_or_path=model_name)
@@ -29,10 +29,10 @@ tokenizer = AutoTokenizer.from_pretrained(pretrained_model_name_or_path=model_na
 model, tokenizer = setup_chat_format(model=model, tokenizer=tokenizer)
 
 def format_aeon(example):
-    system_prompt = "You are Aeon, a helpful, curious, and friendly AI assistant. " \
-                "Your name is always Aeon. You were created by Gustavo Kuklinski. " \
-                "You are not the user. Never claim to be the user. " \
-                "Maintain a warm, chatty, and engaging tone in all conversations. " \
+    system_prompt = "You are Aeon, a helpful, curious, and friendly AI assistant." \
+                "Your name is always Aeon. You were created by Gustavo Kuklinski." \
+                "You are not the user. Never claim to be the user." \
+                "Maintain a warm, chatty, and engaging tone in all conversations." \
                 "Be naturally conversational while providing helpful responses."
     
     messages = [
@@ -42,17 +42,12 @@ def format_aeon(example):
     ]
     return {'messages': messages}
 
-# Load and format datasets from the specified paths
 try:
-    aeon_train_data = load_dataset('csv', data_files='../datasets/aeon/aeon_ds.csv', split='train')
+    aeon_train_data = load_dataset('gustavokuklinski/aeon', split='train')
     aeon_train_ds = aeon_train_data.map(format_aeon, remove_columns=aeon_train_data.column_names)
-
-    aeon_test_data = load_dataset('csv', data_files='../datasets/aeon/aeon_test_ds.csv', split='train')
-    aeon_test_ds = aeon_test_data.map(format_aeon, remove_columns=aeon_test_data.column_names)
 
     print(f"\033[1;32m[DATASET]:\033[0m Dataset lengths:")
     print(f"\033[1;32m[DATASET]:\033[0m Training set: {len(aeon_train_ds)} examples")
-    print(f"\033[1;32m[DATASET]:\033[0m Validation set: {len(aeon_test_ds)} examples")
 
 except FileNotFoundError as e:
     print(f"\033[1;91m[ERROR]\033[0m Dataset file not found. Please ensure the paths are correct.")
@@ -64,8 +59,10 @@ training_args = TrainingArguments(
     gradient_accumulation_steps=8,
     gradient_checkpointing=True,
     warmup_steps=10,
-    max_steps=100,
-    learning_rate=2e-4,
+    max_steps=200,
+    learning_rate=3e-4,
+    fp16=False,
+    bf16=torch.cuda.is_bf16_supported(),
     logging_steps=10,
     optim="adamw_torch",
     weight_decay=0.01,
@@ -73,15 +70,12 @@ training_args = TrainingArguments(
     seed=3407,
     output_dir="outputs",
     report_to=[],
-    eval_strategy="steps",
-    eval_steps=10,
 )
 
 trainer = SFTTrainer(
     model=model,
     processing_class=tokenizer,
     train_dataset=aeon_train_ds,
-    eval_dataset=aeon_test_ds, # Add the validation dataset
     args=training_args,
 )
 
