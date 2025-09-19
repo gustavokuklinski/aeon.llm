@@ -20,7 +20,6 @@ print(f"\033[1;93m[TRAINER]\033[0m Device found: {device}")
 
 save_directory = "./aeon"
 
-
 model_name = "HuggingFaceTB/SmolLM2-360M"
 
 model = AutoModelForCausalLM.from_pretrained(pretrained_model_name_or_path=model_name)
@@ -59,7 +58,7 @@ training_args = TrainingArguments(
     gradient_accumulation_steps=8,
     gradient_checkpointing=True,
     warmup_steps=10,
-    max_steps=200,
+    max_steps=1000,
     learning_rate=3e-4,
     fp16=False,
     bf16=torch.cuda.is_bf16_supported(),

@@ -3,10 +3,10 @@ import subprocess
 import sys
 
 # Safetensor modelfiles
-save_directory = "/aeon" 
+save_directory = "/home/gustavokuklinski/Projects/ai-dev/hf/aeon-360m" 
 
 # The desired output filename for the GGUF model.
-gguf_output_filename = "gguf/aeon.gguf"
+gguf_output_filename = "gguf/aeon-360M-F16.gguf"
 
 # The output type for the GGUF model (f16, q8_0).
 output_type = "f16"
