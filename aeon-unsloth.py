@@ -27,22 +27,16 @@ if device != "cuda":
 save_directory = "./aeon"
 model_name = "unsloth/SmolLM2-360M"
 
-# Load model and tokenizer using Unsloth's FastLanguageModel
-# The max_seq_length is important for memory optimization
-# and the dtype should match your hardware
 model, tokenizer = FastLanguageModel.from_pretrained(
     model_name=model_name,
-    max_seq_length=2048, # Adjust as needed
-    dtype=torch.float16, # Use torch.float16 or torch.bfloat16
-    load_in_4bit=True, # Use 4-bit quantization for lower memory usage
+    max_seq_length=2048,
+    dtype=torch.float16,
+    load_in_4bit=True,
 )
 
-# Unsloth's `FastLanguageModel` automatically sets up the chat format
-# if the model supports it. It also automatically applies the LoRA
-# configuration. We just need to define which layers to apply it to.
 model = FastLanguageModel.get_peft_model(
     model,
-    r=16, # Rank of the LoRA matrices
+    r=16,
     target_modules=[
         "q_proj",
         "k_proj",
@@ -65,15 +59,9 @@ def format_aeon(example, tokenizer):
                 "Your name is always Aeon. You were created by Gustavo Kuklinski." \
                 "You are not the user. Never claim to be the user." \
                 "Maintain a warm, chatty, and engaging tone in all conversations." \
+                "If you don't know the user question, just state: 'I don't know'." \
                 "Be naturally conversational while providing helpful responses."
     
-    messages = [
-        {"role": "system", "content": system_prompt},
-        {"role": "user", "content": example['instruction']},
-        {"role": "assistant", "content": example['response']}
-    ]
-
-    # Manually define a simple chat template
     prompt_template = (
         "### System:\n{system_prompt}\n\n"
         "### User:\n{user_prompt}\n\n"
@@ -92,7 +80,6 @@ def format_aeon(example, tokenizer):
 try:
     aeon_train_data = load_dataset('gustavokuklinski/aeon', split='train')
     
-    # Use lambda to pass the tokenizer to the mapping function
     aeon_train_ds = aeon_train_data.map(lambda x: format_aeon(x, tokenizer), remove_columns=aeon_train_data.column_names)
 
     print(f"\033[1;32m[DATASET]:\033[0m Dataset lengths:")
@@ -109,10 +96,10 @@ training_args = TrainingArguments(
     warmup_steps=10,
     max_steps=1000,
     learning_rate=2e-4,
-    fp16=True, # Unsloth uses fp16 or bf16
+    fp16=True,
     bf16=False,
     logging_steps=10,
-    optim="adamw_8bit", # Unsloth recommends this for memory efficiency
+    optim="adamw_8bit",
     weight_decay=0.01,
     lr_scheduler_type="cosine",
     seed=3407,
@@ -120,16 +107,13 @@ training_args = TrainingArguments(
     report_to=[],
 )
 
-# Pass the model and tokenizer to SFTTrainer.
-# The `max_seq_length` argument for `SFTTrainer` is crucial
-# and must match the one used during model loading.
 trainer = SFTTrainer(
     model=model,
     tokenizer=tokenizer,
     train_dataset=aeon_train_ds,
-    dataset_text_field="text", # SFTTrainer needs to know the column with text
-    max_seq_length=2048, # Must match the value used for FastLanguageModel
-    packing=False, # Packing can be enabled for more efficient training
+    dataset_text_field="text",
+    max_seq_length=2048,
+    packing=False,
     args=training_args,
 )
 
@@ -137,7 +121,5 @@ trainer.train()
 
 # Unsloth has a custom save function that saves the LoRA adapters
 model.save_pretrained_merged(save_directory, tokenizer=tokenizer, save_method = "json",)
-
-# You can also save the adapters separately
-model.save_pretrained_finetune(save_directory)
 tokenizer.save_pretrained(save_directory)
+model.save_pretrained_gguf(save_directory, tokenizer, quantization_method = "q8_0")
