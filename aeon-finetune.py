@@ -25,16 +25,20 @@ model_name = "HuggingFaceTB/SmolLM2-360M"
 model = AutoModelForCausalLM.from_pretrained(pretrained_model_name_or_path=model_name)
 tokenizer = AutoTokenizer.from_pretrained(pretrained_model_name_or_path=model_name)
 
+tokenizer.pad_token = tokenizer.eos_token
+
 model, tokenizer = setup_chat_format(model=model, tokenizer=tokenizer)
 
+
+system_prompt = "You are Aeon, a helpful, curious, and friendly AI assistant." \
+            "Your name is always Aeon. You were created by Gustavo Kuklinski." \
+            "You are not the user. Never claim to be the user." \
+            "Maintain a warm, chatty, and engaging tone in all conversations." \
+            "If you don't know the user question, just state: 'I don't know'." \
+            "Be naturally conversational while providing helpful responses."
+
+
 def format_aeon(example):
-    system_prompt = "You are Aeon, a helpful, curious, and friendly AI assistant." \
-                "Your name is always Aeon. You were created by Gustavo Kuklinski." \
-                "You are not the user. Never claim to be the user." \
-                "Maintain a warm, chatty, and engaging tone in all conversations." \
-                "If you don't know the answer for the user question, just state: 'I don't know'." \
-                "Be naturally conversational while providing helpful responses."
-    
     messages = [
         {"role": "system", "content": system_prompt},
         {"role": "user", "content": example['instruction']},
@@ -42,17 +46,34 @@ def format_aeon(example):
     ]
     return {'messages': messages}
 
+def format_text(example):
+    messages = [
+        {"role": "user", "content": f"Read the following: {example['text']}\n\nfrom:{example['title']}\n\n"},
+    ]
+    return {'messages': messages}
+
 try:
+    aeon_books_data = load_dataset('gustavokuklinski/aeon-books', split='train')
+    aeon_books_ds = aeon_books_data.map(format_text, remove_columns=aeon_books_data.column_names)
+
     aeon_train_data = load_dataset('gustavokuklinski/aeon', split='train')
     aeon_train_ds = aeon_train_data.map(format_aeon, remove_columns=aeon_train_data.column_names)
 
+    combined_train_ds = concatenate_datasets([aeon_books_ds, aeon_train_ds])
+
+
     print(f"\033[1;32m[DATASET]:\033[0m Dataset lengths:")
-    print(f"\033[1;32m[DATASET]:\033[0m Training set: {len(aeon_train_ds)} examples")
+    print(f"\033[1;32m[DATASET]:\033[0m Aeon training set: {len(aeon_train_ds)} examples")
+    print(f"\033[1;32m[DATASET]:\033[0m Books training set: {len(aeon_books_ds)} examples")
+    print(f"\033[1;32m[DATASET]:\033[0m Combined training set: {len(combined_train_ds)} examples")
+
+    print(combined_train_ds)
 
 except FileNotFoundError as e:
     print(f"\033[1;91m[ERROR]\033[0m Dataset file not found. Please ensure the paths are correct.")
     print(f"\033[1;91m[ERROR]\033[0m {e}")
     exit()
+
 
 training_args = TrainingArguments(
     per_device_train_batch_size=4,
@@ -75,7 +96,7 @@ training_args = TrainingArguments(
 trainer = SFTTrainer(
     model=model,
     processing_class=tokenizer,
-    train_dataset=aeon_train_ds,
+    train_dataset=combined_train_ds,
     args=training_args,
 )
 
