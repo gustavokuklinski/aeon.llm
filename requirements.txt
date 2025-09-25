@@ -5,4 +5,4 @@ torch
 accelerate
 bitsandbytes
 huggingface_hub
-unsloth
+peft
