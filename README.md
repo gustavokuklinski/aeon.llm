@@ -4,15 +4,38 @@ AEON is portable, private, and capable of operating fully offline (with the exce
 Know more about Aeon: [Main Repository](https://github.com/gustavokuklinski/aeon.ai/)
 
 ## Aeon Trainer
-This is a Aeon LLM trainer and dataset.
+This is a Aeon LLM trainer scripts.
 
-For a CPU training test used model below 100M parameters (tested on Intel Core i7 10th)
+```pretrain.py``` The Raw corpus pre training (Trainer)
+```finetune.py``` Instruction oriented finetune (Supervised Trainer)
+```chat.py``` Testing fine tuned model
 
-The model was trained on Google Colab GPU T4 Free tier
-Model on huggingface.com/[gustavokuklinski/aeon-360m](https://huggingface.co/gustavokuklinski/aeon-360m)
 
-Dataset on huggingface.com/datasets/[gustavokuklinski/aeon](https://huggingface.co/datasets/gustavokuklinski/aeon) 
+### ```pretrain.py``` Set model size
 
-## Scripts
-- `aeon-llm.py` The basic training script
-- `aeon-gguf.py` Convertion from safetensors to GGUF (You can convert locally or on Colab for quantize compile LlamaCpp)
+```python
+# Select from keys in MODEL_PRESETS (e.g., 10, 20, 80, 250, 500)
+TARGET_PARAMS = 10 
+
+# --- MODEL PRESETS ---
+# These configurations are based on standard GPT-2 architectures, offering predictable parameter counts.
+# n_embd (Hidden Dimension) must be divisible by n_head.
+MODEL_PRESETS = {
+    10:  {'n_layer': 4,  'n_head': 4,  'n_embd': 168},  # Actual ~10.3M
+    20:  {'n_layer': 6,  'n_head': 6,  'n_embd': 252},  # Actual ~17.3M
+    80:  {'n_layer': 10, 'n_head': 8,  'n_embd': 512},  # Actual ~84.1M
+    100: {'n_layer': 12, 'n_head': 8,  'n_embd': 640},  # Actual ~91.5M
+    150: {'n_layer': 16, 'n_head': 10, 'n_embd': 768},  # Actual ~163.7M
+    200: {'n_layer': 18, 'n_head': 12, 'n_embd': 768},  # Actual ~200.7M
+    250: {'n_layer': 20, 'n_head': 16, 'n_embd': 768},  # Actual ~240.2M
+    300: {'n_layer': 24, 'n_head': 16, 'n_embd': 768},  # Actual ~288.7M (Close to GPT-2 Small)
+    350: {'n_layer': 26, 'n_head': 16, 'n_embd': 768},  # Actual ~313.2M
+    400: {'n_layer': 28, 'n_head': 16, 'n_embd': 768},  # Actual ~337.7M
+    450: {'n_layer': 30, 'n_head': 16, 'n_embd': 768},  # Actual ~362.2M
+    500: {'n_layer': 32, 'n_head': 16, 'n_embd': 768},  # Actual ~386.7M
+}
+```
+
+## Legacy
+
+```notebook/aeon-finetune-smollm-360M.ipynb``` The notebook used for first testing.
