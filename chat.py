@@ -1,83 +1,133 @@
-import torch
-from transformers import pipeline, AutoModelForCausalLM, AutoTokenizer
 import os
+import torch
+from transformers import GPT2LMHeadModel, AutoTokenizer
 
-# --- Configuration ---
-MODEL_PATH = "./aeon_finetuned"
-MAX_LENGTH = 150  # How long the model's response can be
-TEMPERATURE = 0.7 # Controls randomness (higher=more creative)
-TOP_K = 50        # Considers only the top 50 likely next tokens
-TOP_P = 0.95      # Takes tokens summing up to 95% probability
+# Suppress Hugging Face warnings for cleaner output
+os.environ["TRANSFORMERS_NO_ADVISORY_WARNINGS"] = "true"
 
-def chat_with_model():
-    """Loads the fine-tuned model and provides an interactive chat interface."""
-    
-    print("-> Loading trained model and tokenizer for inference...")
+# --- CONFIGURATION ---
+MODEL_DIR = "./aeon_llm" # Directory where the fine-tuned model is saved
+MAX_NEW_TOKENS = 256 # Maximum length for the model's reply
+REPETITION_PENALTY = 1.5 # Increased to prevent repetitive non-sense
+TEMPERATURE = 0.7 # Lowered for more coherent, less random responses
 
-    if not os.path.exists(MODEL_PATH):
-        print(f"Error: Model directory '{MODEL_PATH}' not found.")
-        print("Please ensure your training script successfully ran and created this folder.")
+# Instruction format delimiters (MUST match the finetuning script)
+USER_PREFIX = "\n<|user|>\n"
+MODEL_PREFIX = "\n<|model|>\n"
+SYSTEM_MESSAGE = "You are Aeon, an AI trained to be a creative and knowledgeable conversational assistant."
+
+def load_and_chat():
+    """Loads the model and tokenizer, then starts the interactive chat loop."""
+    if not os.path.exists(MODEL_DIR):
+        print(f"Error: Model directory not found at {MODEL_DIR}")
+        print("Please ensure you have completed both pre-training (Stage 1) and instruction fine-tuning (Stage 2).")
         return
 
-    # Determine device (use GPU if available)
-    device = 0 if torch.cuda.is_available() else -1
-    
+    print("-> Loading model and tokenizer...")
     try:
-        # Load the model and tokenizer
-        tokenizer = AutoTokenizer.from_pretrained(MODEL_PATH)
-        model = AutoModelForCausalLM.from_pretrained(MODEL_PATH)
+        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        tokenizer = AutoTokenizer.from_pretrained(MODEL_DIR)
+        model = GPT2LMHeadModel.from_pretrained(MODEL_DIR).to(device)
+        model.eval()
+        
+        # Ensure the pad token is set for the model generation
+        if tokenizer.pad_token is None:
+            tokenizer.add_special_tokens({'pad_token': tokenizer.eos_token})
 
-        # Create the text generation pipeline
-        generator = pipeline(
-            "text-generation",
-            model=model,
-            tokenizer=tokenizer,
-            device=device,
-            # Ensure the model is set to evaluation mode
-            framework="pt" 
-        )
+        # Get the model's max context length (n_positions)
+        MAX_CONTEXT = model.config.n_positions # Should be 512 based on pretrain_raw.py
+        
+    except Exception as e:
+        print(f"Failed to load model or tokenizer: {e}")
+        return
 
-        print("\n--- Model Chat Ready ---")
-        print("Model loaded successfully. Start typing your prompts.")
-        print("Type 'quit' or 'exit' to end the session.")
-        print("-" * 30)
+    print("-" * 50)
+    print(f"Aeon LLM Chat Initialized (Parameters: {model.num_parameters():,})")
+    print(f"Device: {device}")
+    print(f"Max Context Length: {MAX_CONTEXT}")
+    print(f"Enter 'quit' or 'exit' to end the session.")
+    print("-" * 50)
 
-        # Interactive loop
-        while True:
-            prompt = input("You: ")
-            
-            if prompt.lower() in ["quit", "exit"]:
-                print("Exiting chat. Goodbye!")
+    # Start conversation history with the System message
+    chat_history_text = SYSTEM_MESSAGE
+
+    while True:
+        try:
+            user_input = input(f"{USER_PREFIX.strip()}: ")
+            if user_input.lower() in ['quit', 'exit']:
                 break
 
-            if not prompt.strip():
-                continue
-
-            # Generate the response
-            # Note: The output is a continuation of the input prompt
-            output = generator(
-                prompt,
-                max_length=len(tokenizer.encode(prompt)) + MAX_LENGTH,
-                temperature=TEMPERATURE,
-                top_k=TOP_K,
-                top_p=TOP_P,
-                repetition_penalty=1.2, # Helps prevent repetitive text
-                num_return_sequences=1,
-            )
-
-            # Extract and clean the generated text
-            generated_text = output[0]['generated_text']
+            # 1. Prepare the NEW turn tokens to determine required space
+            new_turn_text = USER_PREFIX + user_input + MODEL_PREFIX
+            new_turn_tokens = tokenizer.encode(new_turn_text, truncation=True)
             
-            # Since the model returns the prompt + completion, we only want the completion
-            completion = generated_text[len(prompt):].strip()
+            # Calculate the minimum space needed for the new turn and the model's generated reply
+            # Adding a small safety buffer (5 tokens)
+            required_space = len(new_turn_tokens) + MAX_NEW_TOKENS + 5 
             
-            # Display the result
-            print(f"LLM: {completion}\n")
+            # 2. Check and Truncate the Existing History (Context Management Fix)
+            history_tokens = tokenizer.encode(chat_history_text, truncation=False)
+            
+            # Determine the maximum number of history tokens we can keep
+            max_history_tokens = MAX_CONTEXT - required_space
 
-    except Exception as e:
-        print(f"\nAn error occurred during model loading or generation: {e}")
-        print("Check if dependencies are installed (pip install transformers torch)")
+            if len(history_tokens) > max_history_tokens:
+                # Calculate system message length to ensure it's always kept
+                system_message_tokens = tokenizer.encode(SYSTEM_MESSAGE, truncation=True)
+                system_len = len(system_message_tokens)
 
+                # Find the starting index for the history we want to keep
+                # We slice the history to keep only the most recent tokens, 
+                # ensuring the system message is at least included.
+                start_index = max(system_len, len(history_tokens) - max_history_tokens)
+                
+                # Trim the history tokens
+                trimmed_history_tokens = history_tokens[start_index:]
+                
+                # Decode the trimmed history back to text
+                chat_history_text = tokenizer.decode(trimmed_history_tokens, skip_special_tokens=False)
+                
+                print(f"[Context Truncated: History trimmed to {len(trimmed_history_tokens)} tokens to fit {MAX_CONTEXT} context window.]")
+
+
+            # 3. Build the final prompt and tokenize
+            prompt = chat_history_text + new_turn_text
+            encoded_prompt = tokenizer(prompt, return_tensors='pt', truncation=True).to(device)
+            new_input_ids = encoded_prompt['input_ids']
+            attention_mask = encoded_prompt['attention_mask']
+            
+            # 4. Generate response
+            with torch.no_grad():
+                chat_history_ids = model.generate(
+                    new_input_ids,
+                    attention_mask=attention_mask,
+                    max_new_tokens=MAX_NEW_TOKENS,
+                    pad_token_id=tokenizer.eos_token_id,
+                    repetition_penalty=REPETITION_PENALTY,
+                    temperature=TEMPERATURE,
+                    do_sample=True,
+                    max_length=None 
+                )
+
+            # 5. Process Output
+            output = tokenizer.decode(chat_history_ids[0], skip_special_tokens=False)
+            
+            # Update the history text for the next turn
+            chat_history_text = output
+
+            # Extract and print only the new model response
+            model_response_start = output.rfind(MODEL_PREFIX) + len(MODEL_PREFIX)
+            model_response = output[model_response_start:].strip()
+            
+            # Remove any trailing EOS tokens (which appear as the pad token id)
+            if model_response.endswith(tokenizer.decode(tokenizer.eos_token_id)):
+                model_response = model_response[:-len(tokenizer.decode(tokenizer.eos_token_id))].strip()
+
+            print(f"{MODEL_PREFIX.strip()}: {model_response}")
+
+        except Exception as e:
+            print(f"An error occurred during chat: {e}")
+            break
 
 if __name__ == "__main__":
-    chat_with_model()
+    load_and_chat()
