@@ -6,8 +6,9 @@ from transformers import GPT2LMHeadModel, AutoTokenizer
 os.environ["TRANSFORMERS_NO_ADVISORY_WARNINGS"] = "true"
 
 # --- CONFIGURATION ---
-MODEL_DIR = "./aeon_llm" # Directory where the fine-tuned model is saved
-MAX_NEW_TOKENS = 256 # Maximum length for the model's reply
+# FIX: Changed directory to match the output of pretrain_raw.py
+MODEL_DIR = "./aeon_finetuned" # Directory where the fine-tuned model is saved
+MAX_NEW_TOKENS = 512 # Maximum length for the model's reply
 REPETITION_PENALTY = 1.5 # Increased to prevent repetitive non-sense
 TEMPERATURE = 0.7 # Lowered for more coherent, less random responses
 
@@ -25,17 +26,21 @@ def load_and_chat():
 
     print("-> Loading model and tokenizer...")
     try:
+        # Check for CUDA availability first
         device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        
+        # Load the tokenizer and model (the config.json inside MODEL_DIR will define the architecture)
         tokenizer = AutoTokenizer.from_pretrained(MODEL_DIR)
         model = GPT2LMHeadModel.from_pretrained(MODEL_DIR).to(device)
         model.eval()
         
-        # Ensure the pad token is set for the model generation
+        # Ensure the pad token is set for the model generation, aligning with pretrain_raw.py changes
         if tokenizer.pad_token is None:
-            tokenizer.add_special_tokens({'pad_token': tokenizer.eos_token})
+            # We use the EOS token as the PAD token, as done in training
+            tokenizer.pad_token = tokenizer.eos_token 
 
         # Get the model's max context length (n_positions)
-        MAX_CONTEXT = model.config.n_positions # Should be 512 based on pretrain_raw.py
+        MAX_CONTEXT = model.config.n_positions # Should be 1024 based on pretrain_raw.py
         
     except Exception as e:
         print(f"Failed to load model or tokenizer: {e}")
@@ -65,7 +70,7 @@ def load_and_chat():
             # Adding a small safety buffer (5 tokens)
             required_space = len(new_turn_tokens) + MAX_NEW_TOKENS + 5 
             
-            # 2. Check and Truncate the Existing History (Context Management Fix)
+            # 2. Check and Truncate the Existing History (Context Management)
             history_tokens = tokenizer.encode(chat_history_text, truncation=False)
             
             # Determine the maximum number of history tokens we can keep
@@ -106,7 +111,7 @@ def load_and_chat():
                     repetition_penalty=REPETITION_PENALTY,
                     temperature=TEMPERATURE,
                     do_sample=True,
-                    max_length=None 
+                    max_length=MAX_CONTEXT 
                 )
 
             # 5. Process Output
@@ -120,8 +125,9 @@ def load_and_chat():
             model_response = output[model_response_start:].strip()
             
             # Remove any trailing EOS tokens (which appear as the pad token id)
-            if model_response.endswith(tokenizer.decode(tokenizer.eos_token_id)):
-                model_response = model_response[:-len(tokenizer.decode(tokenizer.eos_token_id))].strip()
+            eos_token_str = tokenizer.decode(tokenizer.eos_token_id)
+            if model_response.endswith(eos_token_str):
+                model_response = model_response[:model_response.rfind(eos_token_str)].strip()
 
             print(f"{MODEL_PREFIX.strip()}: {model_response}")
 

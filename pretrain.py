@@ -11,11 +11,11 @@ from transformers import (
 )
 os.environ["TRANSFORMERS_NO_ADVISORY_WARNINGS"] = "true"
 
-TARGET_PARAMS = 1 # Set LLM Parameters
-TRAIN_EPOCH = 1 # Set how much Epochs for pre train
+TARGET_PARAMS = 300 # Set LLM Parameters
+TRAIN_EPOCH = 6 # Set how much Epochs for pre train
 SET_CONTEXT = 1024 # Set context size length
-TRAIN_OUTPUT = "./aeon_output" # Output train checkpoints
-OUTPUT_MODEL_DIR = "./aeon_llm" # Output LLM
+TRAIN_OUTPUT = "./aeon/checkpoint_output" # Output train checkpoints
+OUTPUT_MODEL_DIR = "./aeon/raw_llm" # Output LLM
 
 MODEL_PRESETS = {
     1:   {'n_layer': 2,  'n_head': 2,  'n_embd': 16},   # ~0.9M Parameters
@@ -93,7 +93,7 @@ def load_and_prepare_data():
         remove_columns=raw_datasets.column_names, 
     )
 
-    temp_tokenizer = AutoTokenizer.from_pretrained("distilbert-base-multilingual-cased")
+    temp_tokenizer = AutoTokenizer.from_pretrained("gpt2")
     
     def count_tokens(examples):
         return {'token_count': [len(temp_tokenizer.encode(t, truncation=True)) for t in examples['text']]}
@@ -101,8 +101,7 @@ def load_and_prepare_data():
     tokenized_size_datasets = raw_datasets.map(
         count_tokens,
         batched=True,
-        num_proc=os.cpu_count() or 4,
-        desc="\033[1;36m[INFO]\033[0m Counting tokens in the dataset",
+        num_proc=os.cpu_count() or 4
     )
 
     total_examples = len(raw_datasets)
@@ -128,8 +127,7 @@ def tokenize_and_chunk(datasets, tokenizer, block_size):
         tokenize_function,
         batched=True,
         num_proc=os.cpu_count() or 4,
-        remove_columns=["text"],
-        desc="\033[1;36m[INFO]\033[0m Tokenizing dataset",
+        remove_columns=["text"]
     )
 
     def group_texts(examples):
@@ -159,13 +157,13 @@ def tokenize_and_chunk(datasets, tokenizer, block_size):
 def train_llm(train_dataset, training_args, target_m_params):
     print("\n\033[1;36m[INFO]\033[0m Initializing GPT-2 tokenizer and custom model...")
 
-    tokenizer = AutoTokenizer.from_pretrained("distilbert-base-multilingual-cased")
+    tokenizer = AutoTokenizer.from_pretrained("gpt2")
 
     if tokenizer.pad_token is None or tokenizer.eos_token is None:
         new_special_tokens = {
-            'bos_token': '<|bos|>', 
-            'eos_token': '<|eos|>', 
-            'pad_token': '<|pad|>'
+            'bos_token': '[bos]', 
+            'eos_token': '[eos]', 
+            'pad_token': '[pad]'
         }
         tokenizer.add_special_tokens(new_special_tokens)
     
