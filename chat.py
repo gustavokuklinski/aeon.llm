@@ -7,14 +7,14 @@ os.environ["TRANSFORMERS_NO_ADVISORY_WARNINGS"] = "true"
 
 # --- CONFIGURATION ---
 # FIX: Changed directory to match the output of pretrain_raw.py
-MODEL_DIR = "./aeon_finetuned" # Directory where the fine-tuned model is saved
+MODEL_DIR = "./aeon/aeon_finetuned" # Directory where the fine-tuned model is saved
 MAX_NEW_TOKENS = 512 # Maximum length for the model's reply
 REPETITION_PENALTY = 1.5 # Increased to prevent repetitive non-sense
 TEMPERATURE = 0.7 # Lowered for more coherent, less random responses
 
 # Instruction format delimiters (MUST match the finetuning script)
-USER_PREFIX = "\n<|user|>\n"
-MODEL_PREFIX = "\n<|model|>\n"
+USER_PREFIX = "\n[bos]\n"
+MODEL_PREFIX = "\n[eon]\n"
 SYSTEM_MESSAGE = "You are Aeon, an AI trained to be a creative and knowledgeable conversational assistant."
 
 def load_and_chat():

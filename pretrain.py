@@ -11,9 +11,9 @@ from transformers import (
 )
 os.environ["TRANSFORMERS_NO_ADVISORY_WARNINGS"] = "true"
 
-TARGET_PARAMS = 300 # Set LLM Parameters
+TARGET_PARAMS = 100 # Set LLM Parameters
 TRAIN_EPOCH = 6 # Set how much Epochs for pre train
-SET_CONTEXT = 1024 # Set context size length
+SET_CONTEXT = 2048 # Set context size length
 TRAIN_OUTPUT = "./aeon/checkpoint_output" # Output train checkpoints
 OUTPUT_MODEL_DIR = "./aeon/raw_llm" # Output LLM
 
@@ -61,7 +61,7 @@ TRAINING_ARGS = TrainingArguments(
     gradient_accumulation_steps=32, # Maintained at 32 for effective batch size of 32
     save_strategy="epoch",
     logging_steps=10,
-    learning_rate=5e-5,
+    learning_rate=1e-5,
     weight_decay=0.01,
     fp16=torch.cuda.is_available(), 
     push_to_hub=False,
@@ -147,8 +147,7 @@ def tokenize_and_chunk(datasets, tokenizer, block_size):
         group_texts,
         batched=True,
         batch_size=1000,
-        num_proc=os.cpu_count() or 4,
-        desc=f"\033[1;36m[INFO]\033[0m Grouping texts into blocks of {block_size}",
+        num_proc=os.cpu_count() or 4
     )
 
     return lm_datasets
@@ -159,13 +158,8 @@ def train_llm(train_dataset, training_args, target_m_params):
 
     tokenizer = AutoTokenizer.from_pretrained("gpt2")
 
-    if tokenizer.pad_token is None or tokenizer.eos_token is None:
-        new_special_tokens = {
-            'bos_token': '[bos]', 
-            'eos_token': '[eos]', 
-            'pad_token': '[pad]'
-        }
-        tokenizer.add_special_tokens(new_special_tokens)
+    if tokenizer.pad_token is None:
+        tokenizer.pad_token = tokenizer.eos_token
     
     config = get_model_config(target_m_params)
     
