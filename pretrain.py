@@ -1,6 +1,7 @@
 import os
 import torch
-from datasets import load_dataset, concatenate_datasets
+# Import DatasetDict for structured split
+from datasets import load_dataset, concatenate_datasets, DatasetDict
 from transformers import (
     GPT2Config,
     GPT2LMHeadModel,
@@ -11,8 +12,8 @@ from transformers import (
 )
 os.environ["TRANSFORMERS_NO_ADVISORY_WARNINGS"] = "true"
 
-TARGET_PARAMS = 100 # Set LLM Parameters
-TRAIN_EPOCH = 6 # Set how much Epochs for pre train
+TARGET_PARAMS = 300 # Set LLM Parameters
+TRAIN_EPOCH = 25 # Set how much Epochs for pre train
 SET_CONTEXT = 2048 # Set context size length
 TRAIN_OUTPUT = "./aeon/checkpoint_output" # Output train checkpoints
 OUTPUT_MODEL_DIR = "./aeon/raw_llm" # Output LLM
@@ -53,13 +54,14 @@ def get_model_config(target_m_params: int) -> GPT2Config:
         attn_pdrop=0.0,
     )
 
-# Training Parameters (These should be safe for up to 300M on a T4 GPU)
+
 TRAINING_ARGS = TrainingArguments(
     output_dir=TRAIN_OUTPUT,
     num_train_epochs=TRAIN_EPOCH,
-    per_device_train_batch_size=1, # Reduced for memory conservation
-    gradient_accumulation_steps=32, # Maintained at 32 for effective batch size of 32
+    per_device_train_batch_size=1,
+    gradient_accumulation_steps=32,
     save_strategy="epoch",
+    eval_strategy="epoch",
     logging_steps=10,
     learning_rate=1e-5,
     weight_decay=0.01,
@@ -74,45 +76,60 @@ def load_and_prepare_data():
     print("\033[1;36m[INFO]\033[0m Loading and preparing RAW corpus data...")
     try:
         ds1 = load_dataset('gustavokuklinski/aeon-books', split='train')
-        ds2 = load_dataset('gustavokuklinski/aeon-movies-tv', split='train')
 
-        raw_datasets = concatenate_datasets([ds1, ds2])
+        raw_datasets = concatenate_datasets([ds1])
 
     except Exception as e:
         print(f"Error loading Hugging Face datasets: {e}")
         raise RuntimeError("Failed to load required datasets. Please check names and connectivity.")
+
+    print("\033[1;36m[INFO]\033[0m Splitting data into 95% train and 5% validation sets...")
+    
+    split_datasets = raw_datasets.train_test_split(test_size=0.05, seed=42)
+    
+    raw_train_ds = split_datasets['train']
+    raw_eval_ds = split_datasets['test']
 
 
     def combine_columns(examples):
         combined_text = [f"{title}. {text}" for title, text in zip(examples['title'], examples['text'])]
         return {'text': combined_text}
 
-    raw_datasets = raw_datasets.map(
+    raw_train_ds = raw_train_ds.map(
         combine_columns,
         batched=True,
-        remove_columns=raw_datasets.column_names, 
+        remove_columns=raw_train_ds.column_names, 
     )
+    raw_eval_ds = raw_eval_ds.map(
+        combine_columns,
+        batched=True,
+        remove_columns=raw_eval_ds.column_names, 
+    )
+
 
     temp_tokenizer = AutoTokenizer.from_pretrained("gpt2")
     
     def count_tokens(examples):
         return {'token_count': [len(temp_tokenizer.encode(t, truncation=True)) for t in examples['text']]}
     
-    tokenized_size_datasets = raw_datasets.map(
+    tokenized_size_datasets = raw_train_ds.map(
         count_tokens,
         batched=True,
         num_proc=os.cpu_count() or 4
     )
 
-    total_examples = len(raw_datasets)
+    total_examples = len(raw_train_ds) + len(raw_eval_ds)
     total_tokens = sum(tokenized_size_datasets['token_count'])
     
     print(f"\n\033[1;36m[INFO]\033[0m DATASET STATISTICS")
     print(f"\033[1;36m[INFO]\033[0m Total Examples (Documents): {total_examples:,}")
+    print(f"\033[1;36m[INFO]\033[0m Training Examples: {len(raw_train_ds):,}")
+    print(f"\033[1;36m[INFO]\033[0m Validation Examples: {len(raw_eval_ds):,}")
     print(f"\033[1;36m[INFO]\033[0m Total Raw Tokens (Approx.): {total_tokens:,}")
-    print(f"\033[1;36m[INFO]\033[0m Average Tokens per Example: {total_tokens / total_examples:,.0f}")
-
-    return raw_datasets
+    print(f"\033[1;36m[INFO]\033[0m Average Tokens per Example: {total_tokens / len(raw_train_ds):,.0f} (Train only)") # Adjusted calculation
+    
+    # Return the split datasets
+    return DatasetDict({'train': raw_train_ds, 'eval': raw_eval_ds})
 
 
 def tokenize_and_chunk(datasets, tokenizer, block_size):
@@ -122,38 +139,46 @@ def tokenize_and_chunk(datasets, tokenizer, block_size):
     def tokenize_function(examples):
         return tokenizer(examples["text"], truncation=True, max_length=block_size)
 
+    def process_split(split_dataset):
+        tokenized_datasets = split_dataset.map(
+            tokenize_function,
+            batched=True,
+            num_proc=os.cpu_count() or 4,
+            remove_columns=["text"]
+        )
 
-    tokenized_datasets = datasets.map(
-        tokenize_function,
-        batched=True,
-        num_proc=os.cpu_count() or 4,
-        remove_columns=["text"]
-    )
+        def group_texts(examples):
+            concatenated_examples = {k: sum(examples[k], []) for k in examples.keys()}
+            total_length = len(concatenated_examples[list(examples.keys())[0]])
 
-    def group_texts(examples):
-        concatenated_examples = {k: sum(examples[k], []) for k in examples.keys()}
-        total_length = len(concatenated_examples[list(examples.keys())[0]])
+            total_length = (total_length // block_size) * block_size 
+            
+            result = {
+                k: [t[i : i + block_size] for i in range(0, total_length, block_size)]
+                for k, t in concatenated_examples.items()
+            }
+            result["labels"] = result["input_ids"].copy()
+            return result
 
-        total_length = (total_length // block_size) * block_size 
-        
-        result = {
-            k: [t[i : i + block_size] for i in range(0, total_length, block_size)]
-            for k, t in concatenated_examples.items()
-        }
-        result["labels"] = result["input_ids"].copy()
-        return result
+        lm_datasets = tokenized_datasets.map(
+            group_texts,
+            batched=True,
+            batch_size=1000,
+            num_proc=os.cpu_count() or 4
+        )
+        return lm_datasets
 
-    lm_datasets = tokenized_datasets.map(
-        group_texts,
-        batched=True,
-        batch_size=1000,
-        num_proc=os.cpu_count() or 4
-    )
+    # Handle the DatasetDict input
+    if isinstance(datasets, DatasetDict):
+        lm_datasets_dict = DatasetDict()
+        for key in datasets:
+            lm_datasets_dict[key] = process_split(datasets[key])
+        return lm_datasets_dict
+    else:
+        return process_split(datasets) # Fallback for single dataset input (though no longer used)
 
-    return lm_datasets
 
-
-def train_llm(train_dataset, training_args, target_m_params):
+def train_llm(split_datasets, training_args, target_m_params):
     print("\n\033[1;36m[INFO]\033[0m Initializing GPT-2 tokenizer and custom model...")
 
     tokenizer = AutoTokenizer.from_pretrained("gpt2")
@@ -171,11 +196,16 @@ def train_llm(train_dataset, training_args, target_m_params):
 
     print(f"\n\033[1;36m[INFO]\033[0m Model initialized with {model.num_parameters():,} parameters.") 
 
-    lm_train_dataset = tokenize_and_chunk(train_dataset, tokenizer, config.n_positions)
+    # Pass the whole DatasetDict to tokenize_and_chunk
+    lm_datasets = tokenize_and_chunk(split_datasets, tokenizer, config.n_positions)
+    
+    lm_train_dataset = lm_datasets['train']
+    lm_eval_dataset = lm_datasets['eval'] # Extract the evaluation dataset
 
 
     print(f"\033[1;36m[INFO]\033[0m TRAINING INPUT SIZE (AFTER CHUNKING)")
     print(f"\033[1;36m[INFO]\033[0m Total Training Blocks (Steps/Epoch): {len(lm_train_dataset):,}")
+    print(f"\033[1;36m[INFO]\033[0m Total Validation Blocks: {len(lm_eval_dataset):,}")
     
     data_collator = DataCollatorForLanguageModeling(
         tokenizer=tokenizer,
@@ -186,6 +216,7 @@ def train_llm(train_dataset, training_args, target_m_params):
         model=model,
         args=training_args,
         train_dataset=lm_train_dataset,
+        eval_dataset=lm_eval_dataset,
         data_collator=data_collator,
         processing_class=tokenizer
     )
@@ -204,8 +235,8 @@ if __name__ == "__main__":
         TRAINING_ARGS.fp16 = False 
         
     try:
-        train_ds = load_and_prepare_data()
-        train_llm(train_ds, TRAINING_ARGS, TARGET_PARAMS) 
+        split_ds = load_and_prepare_data() 
+        train_llm(split_ds, TRAINING_ARGS, TARGET_PARAMS) 
 
     except Exception as e:
         print(f"\nAn error occurred during execution: {e}")
