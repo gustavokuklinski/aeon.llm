@@ -1,6 +1,5 @@
 import os
 import torch
-# Import DatasetDict for structured split
 from datasets import load_dataset, concatenate_datasets, DatasetDict
 from transformers import (
     GPT2Config,
@@ -12,12 +11,12 @@ from transformers import (
 )
 os.environ["TRANSFORMERS_NO_ADVISORY_WARNINGS"] = "true"
 
-TARGET_PARAMS = 300 # Set LLM Parameters
-TRAIN_EPOCH = 25 # Set how much Epochs for pre train
-SET_CONTEXT = 2048 # Set context size length
+TARGET_PARAMS = 100 # Set LLM Parameters
+TRAIN_EPOCH = 8 # Set how much Epochs for pre train
+SET_CONTEXT = 1024 # Set context size length
 TRAIN_OUTPUT = "./aeon/checkpoint_output" # Output train checkpoints
 OUTPUT_MODEL_DIR = "./aeon/raw_llm" # Output LLM
-
+TINY_SHAKESPEARE_URL = "https://raw.githubusercontent.com/karpathy/char-rnn/master/data/tinyshakespeare/input.txt"
 MODEL_PRESETS = {
     1:   {'n_layer': 2,  'n_head': 2,  'n_embd': 16},   # ~0.9M Parameters
     5:   {'n_layer': 2,  'n_head': 2,  'n_embd': 96},   # ~5.5M Parameters
@@ -75,9 +74,23 @@ TRAINING_ARGS = TrainingArguments(
 def load_and_prepare_data():
     print("\033[1;36m[INFO]\033[0m Loading and preparing RAW corpus data...")
     try:
+        print(f"\033[1;36m[INFO]\033[0m Loading Aeon Books...")
         ds1 = load_dataset('gustavokuklinski/aeon-books', split='train')
 
-        raw_datasets = concatenate_datasets([ds1])
+        print(f"\033[1;36m[INFO]\033[0m Loading Tiny Shakespeare from URL...")
+        ds_shakespeare = load_dataset('text', data_files={'train': TINY_SHAKESPEARE_URL}, split='train')
+
+        ds_shakespeare = ds_shakespeare.rename_column("text", "text_content")
+        ds_shakespeare = ds_shakespeare.add_column("title", ["The Complete Works of Willian Shakespeare (Tiny)"] * len(ds_shakespeare))
+        ds_shakespeare = ds_shakespeare.rename_column("text_content", "text")
+
+        full_shakespeare_text = "\n".join(ds_shakespeare['text'])
+        ds_shakespeare_single = ds_shakespeare.from_dict({
+            'title': ["The Complete Works of Willian Shakespeare (Tiny)"], 
+            'text': [full_shakespeare_text]
+        })
+        
+        raw_datasets = concatenate_datasets([ds1, ds_shakespeare_single])
 
     except Exception as e:
         print(f"Error loading Hugging Face datasets: {e}")
@@ -106,9 +119,9 @@ def load_and_prepare_data():
         remove_columns=raw_eval_ds.column_names, 
     )
 
-
     temp_tokenizer = AutoTokenizer.from_pretrained("gpt2")
     
+
     def count_tokens(examples):
         return {'token_count': [len(temp_tokenizer.encode(t, truncation=True)) for t in examples['text']]}
     
@@ -128,7 +141,6 @@ def load_and_prepare_data():
     print(f"\033[1;36m[INFO]\033[0m Total Raw Tokens (Approx.): {total_tokens:,}")
     print(f"\033[1;36m[INFO]\033[0m Average Tokens per Example: {total_tokens / len(raw_train_ds):,.0f} (Train only)") # Adjusted calculation
     
-    # Return the split datasets
     return DatasetDict({'train': raw_train_ds, 'eval': raw_eval_ds})
 
 
@@ -168,14 +180,13 @@ def tokenize_and_chunk(datasets, tokenizer, block_size):
         )
         return lm_datasets
 
-    # Handle the DatasetDict input
     if isinstance(datasets, DatasetDict):
         lm_datasets_dict = DatasetDict()
         for key in datasets:
             lm_datasets_dict[key] = process_split(datasets[key])
         return lm_datasets_dict
     else:
-        return process_split(datasets) # Fallback for single dataset input (though no longer used)
+        return process_split(datasets)
 
 
 def train_llm(split_datasets, training_args, target_m_params):
@@ -196,11 +207,10 @@ def train_llm(split_datasets, training_args, target_m_params):
 
     print(f"\n\033[1;36m[INFO]\033[0m Model initialized with {model.num_parameters():,} parameters.") 
 
-    # Pass the whole DatasetDict to tokenize_and_chunk
     lm_datasets = tokenize_and_chunk(split_datasets, tokenizer, config.n_positions)
     
     lm_train_dataset = lm_datasets['train']
-    lm_eval_dataset = lm_datasets['eval'] # Extract the evaluation dataset
+    lm_eval_dataset = lm_datasets['eval']
 
 
     print(f"\033[1;36m[INFO]\033[0m TRAINING INPUT SIZE (AFTER CHUNKING)")

@@ -1,6 +1,6 @@
 import os
 from transformers import AutoModelForCausalLM, AutoTokenizer, TrainingArguments
-from datasets import load_dataset
+from datasets import load_dataset, concatenate_datasets
 from trl import SFTTrainer, setup_chat_format
 import torch
 
@@ -25,18 +25,34 @@ def format_aeon(example):
     ]
     return {'messages': messages}
 
+
+def format_alpaca(example):
+    messages = [
+        {"role": "system", "content": SYSTEM_PROMPT},
+        {"role": "user", "content": f"{example['instruction']}\n{example['input']}"},
+        {"role": "assistant", "content": f"{example['output']}"}
+    ]
+    return {'messages': messages}
+
+
 try:
     print(f"\033[1;36m[INFO]\033[0m Loading instruction dataset")
     
     # Load ONLY the instruction dataset for fine-tuning
     raw_instruction_data = load_dataset('gustavokuklinski/aeon', split='train')
-    
+    raw_alpaca_data = load_dataset('tatsu-lab/alpaca', split='train')
+
     # Map the data to the required chat format
-    formatted_train_ds = raw_instruction_data.map(
+    formatted_aeon_ds = raw_instruction_data.map(
         format_aeon, 
-        remove_columns=raw_instruction_data.column_names,
-        desc="Formatting instruction data"
+        remove_columns=raw_instruction_data.column_names
     )
+    formatted_alpaca_ds = raw_alpaca_data.map(
+        format_alpaca, 
+        remove_columns=raw_alpaca_data.column_names
+    )
+
+    formatted_train_ds = concatenate_datasets([formatted_aeon_ds, formatted_alpaca_ds])
 
     print(f"\033[1;32m[DATASET]:\033[0m Instruction training set size: {len(formatted_train_ds)} examples")
     print(f"\033[1;32m[DATASET]:\033[0m Ready for SFTTrainer.")
@@ -64,7 +80,7 @@ training_args = TrainingArguments(
     gradient_accumulation_steps=8,
     gradient_checkpointing=True,
     warmup_steps=10,
-    max_steps=300, # Use steps for controlled SFT duration
+    num_train_epochs=3.0,
     learning_rate=2e-5,
     fp16=torch.cuda.is_available(), 
     bf16=False, # Disable BF16 unless using A100/H100

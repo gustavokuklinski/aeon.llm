@@ -6,27 +6,35 @@ from transformers import GPT2LMHeadModel, AutoTokenizer
 os.environ["TRANSFORMERS_NO_ADVISORY_WARNINGS"] = "true"
 
 # --- CONFIGURATION ---
-MODEL_DIR = "./aeon/aeon_finetuned"
-MAX_NEW_TOKENS = 512
-REPETITION_PENALTY = 1.5
+MODEL_DIR = "./aeon/raw_llm"
+#MODEL_DIR = "./aeon/finetuned_llm"
+MAX_NEW_TOKENS = 180
+REPETITION_PENALTY = 1.2
 TEMPERATURE = 0.7
+TRIM_LENGTH = 280
+ASSISTANT_COLOR = "\033[1;32m"
+USER_COLOR = "\033[1;34m"
+RESET_COLOR = "\033[0m"
 
-USER_PREFIX = "\n<|im_end|><|im_start|>user\n"
-MODEL_PREFIX = "\n<|im_end|><|im_start|>assistant\n"
-SYSTEM_MESSAGE = "You are Aeon, an AI trained to be a creative and knowledgeable conversational assistant."
+SYSTEM_MESSAGE = (
+    "You are a helpful and friendly AI assistant named Aeon."
+)
+USER_PREFIX = "\n<|user|>\n"
+MODEL_PREFIX = "\n<|assistant|>\n"
 
 def load_and_chat():
     if not os.path.exists(MODEL_DIR):
         print(f"Error: Model directory not found at {MODEL_DIR}")
-        print("Please ensure you have completed both pre-training (Stage 1) and instruction fine-tuning (Stage 2).")
+        print("Please ensure you have completed both pre-training (pretrain.py -> /raw_llm)"
+              "and instruction fine-tuning (finetune.py -> /finetuned_llm).")
         return
 
-    print("-> Loading model and tokenizer...")
+    print("\033[1;93m[BOOT]\033[0m Loading model and tokenizer...")
     try:
         device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         
         tokenizer = AutoTokenizer.from_pretrained(MODEL_DIR)
-        model = GPT2LMHeadModel.from_pretrained(MODEL_DIR).to(device)
+        model = GPT2LMHeadModel.from_pretrained(MODEL_DIR, torch_dtype=torch.float16).to(device)
         model.eval()
         
         if tokenizer.pad_token is None:
@@ -38,22 +46,33 @@ def load_and_chat():
         print(f"Failed to load model or tokenizer: {e}")
         return
 
-    print("-" * 50)
-    print(f"Aeon LLM Chat Initialized (Parameters: {model.num_parameters():,})")
-    print(f"Device: {device}")
-    print(f"Max Context Length: {MAX_CONTEXT}")
-    print(f"Enter 'quit' or 'exit' to end the session.")
-    print("-" * 50)
+    print("\033[38;5;160m___________________________________________DEBUG___\033[0m")
+    print("")
+    print("\033[38;5;160m      ###       #######     #######    ###     ### \033[0m")
+    print("\033[38;5;160m    ### ###     ##        ###     ###  ######  ### \033[0m")
+    print("\033[38;5;160m   ###   ###    #######   ###     ###  ###  ## ### \033[0m")
+    print("\033[38;5;160m  ###     ###   ##        ###     ###  ###   ##### \033[0m")
+    print("\033[38;5;160m ##         ##  #######     #######    ###     ### \033[0m")
+    print("\033[38;5;160m_Aeon LLM Chat Initialize__________________________\033[0m")
+    print("")
+    print(f"\033[1;93m[SYS]\033[0m \033[1;34m[LLM]\033[0m: {MODEL_DIR}")
+    print(f"\033[1;93m[SYS]\033[0m \033[1;34m[PARAMS]\033[0m: {model.num_parameters():,}")
+    print(f"\033[1;93m[SYS]\033[0m \033[1;34m[DEVICE]\033[0m: {device}")
+    print(f"\033[1;93m[SYS]\033[0m \033[1;34m[MAX TOKENS]\033[0m: {MAX_NEW_TOKENS}")
+    print(f"\033[1;93m[SYS]\033[0m \033[1;34m[MAX CONTEXT]\033[0m: {MAX_CONTEXT}")
+    print(f"\033[1;33m[CMD]\033[0m Enter '/quit' or '/exit' to end the session.")
 
     chat_history_text = SYSTEM_MESSAGE
 
     while True:
         try:
-            user_input = input(f"{USER_PREFIX.strip()}: ")
-            if user_input.lower() in ['quit', 'exit']:
+            user_input = input(f"{USER_COLOR}{USER_PREFIX.strip()}:{RESET_COLOR} ")
+
+            if user_input.lower() in ['/quit', '/exit']:
                 break
 
             new_turn_text = USER_PREFIX + user_input + MODEL_PREFIX
+
             new_turn_tokens = tokenizer.encode(new_turn_text, truncation=True)
             
             required_space = len(new_turn_tokens) + MAX_NEW_TOKENS + 5 
@@ -72,7 +91,7 @@ def load_and_chat():
 
                 chat_history_text = tokenizer.decode(trimmed_history_tokens, skip_special_tokens=False)
                 
-                print(f"[Context Truncated: History trimmed to {len(trimmed_history_tokens)} tokens to fit {MAX_CONTEXT} context window.]")
+                print(f"\033[1;34m[INFO]\033[0m [Context Truncated: History trimmed to {len(trimmed_history_tokens)} tokens to fit {MAX_CONTEXT} context window.]")
 
             prompt = chat_history_text + new_turn_text
             encoded_prompt = tokenizer(prompt, return_tensors='pt', truncation=True).to(device)
@@ -88,12 +107,12 @@ def load_and_chat():
                     repetition_penalty=REPETITION_PENALTY,
                     temperature=TEMPERATURE,
                     do_sample=True,
-                    max_length=MAX_CONTEXT 
+                    #max_length=MAX_CONTEXT 
                 )
 
             output = tokenizer.decode(chat_history_ids[0], skip_special_tokens=False)
             
-            chat_history_text = output
+            chat_history_text = output[:TRIM_LENGTH].strip()
 
             model_response_start = output.rfind(MODEL_PREFIX) + len(MODEL_PREFIX)
             model_response = output[model_response_start:].strip()
@@ -102,10 +121,16 @@ def load_and_chat():
             if model_response.endswith(eos_token_str):
                 model_response = model_response[:model_response.rfind(eos_token_str)].strip()
 
-            print(f"{MODEL_PREFIX.strip()}: {model_response}")
+            display_response = model_response.replace('\n', ' ').replace('\t', ' ')
+
+
+            if len(display_response) > TRIM_LENGTH:
+                display_response = display_response[:TRIM_LENGTH].strip() + f'... etc...\n\n\033[1;93m[SYS]\033[0m {TRIM_LENGTH}+ CHARS.{RESET_COLOR}'
+
+            print(f"{ASSISTANT_COLOR}{MODEL_PREFIX.strip()}:{RESET_COLOR} {display_response}")
 
         except Exception as e:
-            print(f"An error occurred during chat: {e}")
+            print(f"\033[1;91m[ERRR]\033[0m An error occurred during chat: {e}")
             break
 
 if __name__ == "__main__":

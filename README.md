@@ -15,11 +15,9 @@ This is a Aeon LLM trainer scripts.
 
 ```python
 # Select from keys in MODEL_PRESETS (e.g., 10, 20, 80, 250, 500)
-TARGET_PARAMS = 10 
+TARGET_PARAMS = 100
 
 # --- MODEL PRESETS ---
-# These configurations are based on standard GPT-2 architectures, offering predictable parameter counts.
-# n_embd (Hidden Dimension) must be divisible by n_head.
 MODEL_PRESETS = {
     10:  {'n_layer': 4,  'n_head': 4,  'n_embd': 168},  # Actual ~10.3M
     20:  {'n_layer': 6,  'n_head': 6,  'n_embd': 252},  # Actual ~17.3M
@@ -28,7 +26,7 @@ MODEL_PRESETS = {
     150: {'n_layer': 16, 'n_head': 10, 'n_embd': 768},  # Actual ~163.7M
     200: {'n_layer': 18, 'n_head': 12, 'n_embd': 768},  # Actual ~200.7M
     250: {'n_layer': 20, 'n_head': 16, 'n_embd': 768},  # Actual ~240.2M
-    300: {'n_layer': 24, 'n_head': 16, 'n_embd': 768},  # Actual ~288.7M (Close to GPT-2 Small)
+    300: {'n_layer': 24, 'n_head': 16, 'n_embd': 768},  # Actual ~288.7M
     350: {'n_layer': 26, 'n_head': 16, 'n_embd': 768},  # Actual ~313.2M
     400: {'n_layer': 28, 'n_head': 16, 'n_embd': 768},  # Actual ~337.7M
     450: {'n_layer': 30, 'n_head': 16, 'n_embd': 768},  # Actual ~362.2M

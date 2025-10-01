@@ -1,5 +1,5 @@
 .llmenv
 llama.cpp
 outputs
-aeon/
 gguf/
+sft_outputs/
