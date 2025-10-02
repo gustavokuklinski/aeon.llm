@@ -2,17 +2,16 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import json
 import os
-import numpy as np # <-- NEW: Added for setting custom tick steps
+import numpy as np
 
-# --- Configuration ---
-LOG_DIR = "./aeon/" # Directory containing the log file
+
+LOG_DIR = "./aeon/raw_llm/output" # Directory containing the log file
 LOG_FILE_NAME = "trainer_state.json"
 FULL_LOG_PATH = os.path.join(LOG_DIR, LOG_FILE_NAME)
-PLOT_FILE_NAME = "training_metrics_step_by_step.png"
+PLOT_FILE_NAME = "training_metrics_pretrain.png"
 
 def plot_training_metrics():
-    # STEP 1: Load and Validate Log File
-    print(f"\n--- STEP 1: Loading Data ---")
+
     print(f"\033[1;93m[LOAD]\033[0m Attempting to read training logs from: {FULL_LOG_PATH}")
     
     try:
@@ -35,15 +34,9 @@ def plot_training_metrics():
         print(f"\033[1;91m[ERROR]\033[0m An unexpected error occurred during file loading: {e}")
         return
 
-
-    # STEP 2: Separate Training and Evaluation Metrics
-    print(f"\n--- STEP 2: Preparing DataFrames ---")
-
-    # Filter for training loss records (they have a 'loss' value)
     train_df = df.dropna(subset=['loss']).rename(columns={'loss': 'Training Loss'})
     print(f"\033[1;93m[TRAIN]\033[0m Extracted {len(train_df)} training loss records.")
 
-    # Filter for evaluation loss records (they have an 'eval_loss' value)
     eval_df = df.dropna(subset=['eval_loss']).rename(columns={'eval_loss': 'Evaluation Loss'})
     print(f"\033[1;93m[EVAL]\033[0m Extracted {len(eval_df)} evaluation loss records.")
     
@@ -51,12 +44,8 @@ def plot_training_metrics():
         print("\033[1;93m[WARNING]\033[0m No loss metrics found in the log history. Skipping plot generation.")
         return
 
-    # STEP 3: Configure and Generate Plot
-    print(f"\n--- STEP 3: Generating Plot ---")
-
     plt.figure(figsize=(10, 6))
 
-    # Plot Training Loss
     plt.plot(
         train_df['step'], 
         train_df['Training Loss'], 
@@ -66,7 +55,6 @@ def plot_training_metrics():
     )
     print("\033[1;93m[PLOT]\033[0m Plotted Training Loss.")
 
-    # Plot Evaluation Loss
     plt.plot(
         eval_df['step'], 
         eval_df['Evaluation Loss'], 
@@ -77,16 +65,11 @@ def plot_training_metrics():
     )
     print("\033[1;93m[PLOT]\033[0m Plotted Evaluation Loss.")
 
-    # STEP 4: Apply Aesthetics and Save
-    print(f"\n--- STEP 4: Applying Aesthetics and Saving ---")
-    
-    # Calculate appropriate tick marks based on the training data range
     if not train_df.empty:
         max_step = train_df['step'].max()
-        # Set ticks from 0 up to the next 100-step increment
         tick_interval = 100
         x_ticks = np.arange(0, max_step + tick_interval, tick_interval)
-        plt.xticks(x_ticks) # <-- NEW: Set custom X-axis ticks
+        plt.xticks(x_ticks)
         print(f"\033[1;93m[PLOT]\033[0m Adjusted X-axis ticks to increments of {tick_interval} steps.")
 
 

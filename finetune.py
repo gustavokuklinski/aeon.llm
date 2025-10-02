@@ -7,6 +7,16 @@ import torch
 MODEL_PATH = "./aeon/raw_llm"  # Directory from ./pretrain.py
 FINAL_SAVE_DIR = "./aeon/finetuned_llm"
 
+print("\033[38;5;160m___________________________________________________\033[0m")
+print("")
+print("\033[38;5;160m      ###       #######     #######    ###     ### \033[0m")
+print("\033[38;5;160m    ### ###     ##        ###     ###  ######  ### \033[0m")
+print("\033[38;5;160m   ###   ###    #######   ###     ###  ###  ## ### \033[0m")
+print("\033[38;5;160m  ###     ###   ##        ###     ###  ###   ##### \033[0m")
+print("\033[38;5;160m ##         ##  #######     #######    ###     ### \033[0m")
+print("\033[38;5;160m_OWN FINETUNE______________________________________\033[0m")
+print("")
+
 device = "cuda" if torch.cuda.is_available() else "cpu"
 print(f"\033[1;93m[TRAINER]\033[0m Device found: {device}")
 

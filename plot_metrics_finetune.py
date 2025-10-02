@@ -6,14 +6,12 @@ import math
 import numpy as np
 
 # --- Configuration ---
-LOG_DIR = "./aeon/" # Directory containing the log file
+LOG_DIR = "./aeon/finetuned_llm/output" # Directory containing the log file
 LOG_FILE_NAME = "trainer_state.json"
 FULL_LOG_PATH = os.path.join(LOG_DIR, LOG_FILE_NAME)
-PLOT_FILE_NAME = "training_metrics_loss_plot.png" # Updated name for the output file
+PLOT_FILE_NAME = "training_metrics_finetune.png"
 
 def process_training_logs():
-    # STEP 1: Load and Validate Log File
-    print(f"\n--- STEP 1: Loading Data ---")
     print(f"\033[1;93m[LOAD]\033[0m Attempting to read training logs from: {FULL_LOG_PATH}")
     
     try:
@@ -36,14 +34,9 @@ def process_training_logs():
         print(f"\033[1;91m[ERROR]\033[0m An unexpected error occurred: {e}")
         return
 
-    # STEP 2: Separate Training and Evaluation Metrics
-    print(f"\n--- STEP 2: Preparing DataFrames for Plotting ---")
-
-    # Filter for training loss records (they have a 'loss' value)
     train_df = df.dropna(subset=['loss']).rename(columns={'loss': 'Training Loss'})
     print(f"\033[1;93m[TRAIN]\033[0m Extracted {len(train_df)} training loss records.")
 
-    # Filter for evaluation loss records (they have an 'eval_loss' value)
     eval_df = df.dropna(subset=['eval_loss']).rename(columns={'eval_loss': 'Evaluation Loss'})
     print(f"\033[1;93m[EVAL]\033[0m Extracted {len(eval_df)} evaluation loss records.")
     
@@ -51,12 +44,8 @@ def process_training_logs():
         print("\033[1;93m[WARNING]\033[0m No loss metrics found in the log history. Skipping plot generation.")
         return
 
-    # STEP 3: Configure and Generate Plot
-    print(f"\n--- STEP 3: Generating Plot ---")
-
     plt.figure(figsize=(10, 6))
 
-    # Plot Training Loss (Blue Line)
     if not train_df.empty:
         plt.plot(
             train_df['step'], 
@@ -67,7 +56,6 @@ def process_training_logs():
         )
         print("\033[1;93m[PLOT]\033[0m Plotted Training Loss.")
 
-    # Plot Evaluation Loss (Red Dotted Line)
     if not eval_df.empty:
         plt.plot(
             eval_df['step'], 
@@ -78,11 +66,7 @@ def process_training_logs():
             linestyle='--'
         )
         print("\033[1;93m[PLOT]\033[0m Plotted Validation Loss.")
-
-    # STEP 4: Apply Aesthetics and Save
-    print(f"\n--- STEP 4: Applying Aesthetics and Saving ---")
-    
-    # Calculate appropriate tick marks based on the training data range
+   
     if not train_df.empty:
         max_step = train_df['step'].max()
         # Set ticks from 0 up to the next 100-step increment

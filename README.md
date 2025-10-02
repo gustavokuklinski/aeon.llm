@@ -3,11 +3,17 @@ AEON is portable, private, and capable of operating fully offline (with the exce
 
 Know more about Aeon: [Main Repository](https://github.com/gustavokuklinski/aeon.ai/)
 
-## Aeon Trainer
-This is a Aeon LLM trainer scripts.
+## Finetune with SmolLM2-360M (or another huggingface llm)
+
+```finetune-smollm2-360M``` Aeon currently model
+
+## Train your own LLM
 
 ```pretrain.py``` The Raw corpus pre training (Trainer)
 ```finetune.py``` Instruction oriented finetune (Supervised Trainer)
+
+## Test the LLM Chat
+
 ```chat.py``` Testing fine tuned model
 
 
@@ -33,7 +39,3 @@ MODEL_PRESETS = {
     500: {'n_layer': 32, 'n_head': 16, 'n_embd': 768},  # Actual ~386.7M
 }
 ```
-
-## Legacy
-
-```notebook/aeon-finetune-smollm-360M.ipynb``` The notebook used for first testing.

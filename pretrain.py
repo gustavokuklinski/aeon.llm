@@ -83,16 +83,10 @@ def load_and_prepare_data():
         print(f"\033[1;36m[INFO]\033[0m Loading Tiny Shakespeare from URL...")
         ds_shakespeare = load_dataset('text', data_files={'train': TINY_SHAKESPEARE_URL}, split='train')
 
-        ds_shakespeare = ds_shakespeare.rename_column("text", "text_content")
-        ds_shakespeare = ds_shakespeare.rename_column("text_content", "text")
-
-        full_shakespeare_text = "\n".join(ds_shakespeare['text'])
-        ds_shakespeare_single = ds_shakespeare.from_dict({
-            'text': [full_shakespeare_text]
-        })
         
         
-        raw_datasets = concatenate_datasets([ds_shakespeare_single, ds1])
+        
+        raw_datasets = concatenate_datasets([ds_shakespeare, ds1])
 
     except Exception as e:
         print(f"Error loading Hugging Face datasets: {e}")
@@ -241,6 +235,16 @@ def train_llm(split_datasets, training_args, target_m_params):
 
 
 if __name__ == "__main__":
+    print("\033[38;5;160m___________________________________________________\033[0m")
+    print("")
+    print("\033[38;5;160m      ###       #######     #######    ###     ### \033[0m")
+    print("\033[38;5;160m    ### ###     ##        ###     ###  ######  ### \033[0m")
+    print("\033[38;5;160m   ###   ###    #######   ###     ###  ###  ## ### \033[0m")
+    print("\033[38;5;160m  ###     ###   ##        ###     ###  ###   ##### \033[0m")
+    print("\033[38;5;160m ##         ##  #######     #######    ###     ### \033[0m")
+    print("\033[38;5;160m_PRE-TRAIN_________________________________________\033[0m")
+    print("")
+
     if not torch.cuda.is_available():
         print("\033[1;93m[PRE TRAINER]\033[0m GPU not detected. Training will run on CPU. Setting fp16=False.")
         TRAINING_ARGS.fp16 = False 
