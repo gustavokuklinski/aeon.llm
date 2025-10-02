@@ -3,3 +3,4 @@ llama.cpp
 outputs
 gguf/
 sft_outputs/
+aeon/checkpoint_output

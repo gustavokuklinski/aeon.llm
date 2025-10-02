@@ -12,9 +12,9 @@ from transformers import (
 os.environ["TRANSFORMERS_NO_ADVISORY_WARNINGS"] = "true"
 
 TARGET_PARAMS = 100 # Set LLM Parameters
-TRAIN_EPOCH = 8 # Set how much Epochs for pre train
-SET_CONTEXT = 1024 # Set context size length
-TRAIN_OUTPUT = "./aeon/checkpoint_output" # Output train checkpoints
+TRAIN_EPOCH = 10 # Set how much Epochs for pre train
+SET_CONTEXT = 2048 # Set context size length
+TRAIN_OUTPUT = "./aeon/raw_llm/output" # Output train checkpoints
 OUTPUT_MODEL_DIR = "./aeon/raw_llm" # Output LLM
 TINY_SHAKESPEARE_URL = "https://raw.githubusercontent.com/karpathy/char-rnn/master/data/tinyshakespeare/input.txt"
 MODEL_PRESETS = {
@@ -67,7 +67,10 @@ TRAINING_ARGS = TrainingArguments(
     fp16=torch.cuda.is_available(), 
     push_to_hub=False,
     optim="adamw_torch",
-    report_to="none"
+    report_to="none",
+    load_best_model_at_end=True,
+    metric_for_best_model="eval_loss",
+    save_total_limit=1
 )
 
 
@@ -81,16 +84,15 @@ def load_and_prepare_data():
         ds_shakespeare = load_dataset('text', data_files={'train': TINY_SHAKESPEARE_URL}, split='train')
 
         ds_shakespeare = ds_shakespeare.rename_column("text", "text_content")
-        ds_shakespeare = ds_shakespeare.add_column("title", ["The Complete Works of Willian Shakespeare (Tiny)"] * len(ds_shakespeare))
         ds_shakespeare = ds_shakespeare.rename_column("text_content", "text")
 
         full_shakespeare_text = "\n".join(ds_shakespeare['text'])
         ds_shakespeare_single = ds_shakespeare.from_dict({
-            'title': ["The Complete Works of Willian Shakespeare (Tiny)"], 
             'text': [full_shakespeare_text]
         })
         
-        raw_datasets = concatenate_datasets([ds1, ds_shakespeare_single])
+        
+        raw_datasets = concatenate_datasets([ds_shakespeare_single, ds1])
 
     except Exception as e:
         print(f"Error loading Hugging Face datasets: {e}")
@@ -105,8 +107,7 @@ def load_and_prepare_data():
 
 
     def combine_columns(examples):
-        combined_text = [f"{title}. {text}" for title, text in zip(examples['title'], examples['text'])]
-        return {'text': combined_text}
+        return {'text': examples['text']}
 
     raw_train_ds = raw_train_ds.map(
         combine_columns,
@@ -149,7 +150,7 @@ def tokenize_and_chunk(datasets, tokenizer, block_size):
     print(f"\033[1;36m[INFO]\033[0m Tokenizing and chunking data into blocks of {block_size}...")
 
     def tokenize_function(examples):
-        return tokenizer(examples["text"], truncation=True, max_length=block_size)
+        return tokenizer(examples["text"], truncation=False)
 
     def process_split(split_dataset):
         tokenized_datasets = split_dataset.map(
