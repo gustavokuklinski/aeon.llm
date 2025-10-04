@@ -9,7 +9,7 @@ import numpy as np
 LOG_DIR = "./aeon/finetuned_llm/output" # Directory containing the log file
 LOG_FILE_NAME = "trainer_state.json"
 FULL_LOG_PATH = os.path.join(LOG_DIR, LOG_FILE_NAME)
-PLOT_FILE_NAME = "training_metrics_finetune.png"
+PLOT_FILE_NAME = "training_metrics_sft.png"
 
 def process_training_logs():
     print(f"\033[1;93m[LOAD]\033[0m Attempting to read training logs from: {FULL_LOG_PATH}")

@@ -6,10 +6,10 @@ import sys
 save_directory = "./aeon/finetuned_llm/" 
 
 # The desired output filename for the GGUF model.
-gguf_output_filename = "gguf/aeon.F16.gguf"
+gguf_output_filename = "gguf/aeon.Q8_0.gguf"
 
 # The output type for the GGUF model (f16, q8_0).
-output_type = "f16"
+output_type = "q8_0"
 
 
 def run_command(command):

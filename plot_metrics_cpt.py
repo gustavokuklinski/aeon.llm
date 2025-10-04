@@ -8,7 +8,7 @@ import numpy as np
 LOG_DIR = "./aeon/raw_llm/output" # Directory containing the log file
 LOG_FILE_NAME = "trainer_state.json"
 FULL_LOG_PATH = os.path.join(LOG_DIR, LOG_FILE_NAME)
-PLOT_FILE_NAME = "training_metrics_pretrain.png"
+PLOT_FILE_NAME = "training_metrics_cpt.png"
 
 def plot_training_metrics():
 
