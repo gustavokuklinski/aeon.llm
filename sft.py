@@ -21,16 +21,10 @@ print(f"\033[1;93m[TRAINER]\033[0m Device found: {device}")
 
 cpt_directory = "./aeon/raw_llm"
 
-model = AutoModelForCausalLM.from_pretrained(pretrained_model_name_or_path=cpt_directory)
-tokenizer = AutoTokenizer.from_pretrained(pretrained_model_name_or_path=cpt_directory)
-tokenizer.pad_token = tokenizer.eos_token
-model, tokenizer = setup_chat_format(model=model, tokenizer=tokenizer)
-
-
 model = AutoModelForCausalLM.from_pretrained(cpt_directory)
 tokenizer = AutoTokenizer.from_pretrained(cpt_directory)
 # Re-apply chat format setup just in case
-model, tokenizer = setup_chat_format(model=model, tokenizer=tokenizer)
+# model, tokenizer = setup_chat_format(model=model, tokenizer=tokenizer)
 
 
 system_prompt = "You are Aeon, a helpful, curious, and friendly AI assistant." \
