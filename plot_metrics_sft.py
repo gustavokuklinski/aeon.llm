@@ -6,7 +6,7 @@ import math
 import numpy as np
 
 # --- Configuration ---
-LOG_DIR = "./aeon/finetuned_llm/output" # Directory containing the log file
+LOG_DIR = "./aeon/finetuned_llm/outputs" # Directory containing the log file
 LOG_FILE_NAME = "trainer_state.json"
 FULL_LOG_PATH = os.path.join(LOG_DIR, LOG_FILE_NAME)
 PLOT_FILE_NAME = "training_metrics_sft.png"
@@ -76,7 +76,7 @@ def process_training_logs():
         print(f"\033[1;93m[PLOT]\033[0m Adjusted X-axis ticks to increments of {tick_interval} steps.")
 
 
-    plt.title('Language Model Fine-Tuning Metrics (Loss)', fontsize=16)
+    plt.title('Language Model Supervised Fine-Tuning Metrics (Loss)', fontsize=16)
     plt.xlabel('Training Step', fontsize=12)
     plt.ylabel('Loss', fontsize=12)
     plt.legend(fontsize=10)
